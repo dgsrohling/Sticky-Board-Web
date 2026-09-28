@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sticky Board</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <!-- Barra superior -->
+  <header class="topbar">
+    <h1 class="topbar-title">Sticky Board</h1>
+
+    <div class="topbar-actions">
+      <input
+        type="search"
+        id="search-input"
+        class="search-input"
+        placeholder="Pesquisar notas..."
+        autocomplete="off"
+      >
+      <button id="btn-new-note" class="btn btn-primary">+ Nova nota</button>
+      <button id="btn-organize" class="btn">Organizar</button>
+      <button id="btn-theme" class="btn" title="Alternar modo claro/escuro">🌙</button>
+    </div>
+  </header>
+
+  <!-- Quadro de notas -->
+  <main id="board" class="board" aria-label="Quadro de notas"></main>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
