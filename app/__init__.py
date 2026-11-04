@@ -2,9 +2,11 @@
 import os
 
 from flask import Flask, render_template
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
+migrate = Migrate()
 
 
 def create_app(test_config=None):
@@ -20,14 +22,11 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     db.init_app(app)
+    migrate.init_app(app, db)
 
     from . import routes
 
     app.register_blueprint(routes.bp)
-
-    with app.app_context():
-        # Cria o banco SQLite automaticamente na primeira execução.
-        db.create_all()
 
     @app.get("/")
     def index():

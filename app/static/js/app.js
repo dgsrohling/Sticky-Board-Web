@@ -62,6 +62,8 @@ function createNoteElement(note) {
   el.className = 'note';
   el.dataset.id = note.id;
   el.dataset.color = note.color;
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', 'Nota');
   el.style.left = note.position_x + 'px';
   el.style.top = note.position_y + 'px';
   el.style.width = note.width + 'px';
@@ -69,31 +71,43 @@ function createNoteElement(note) {
   el.style.zIndex = note.z_index;
 
   el.innerHTML = `
-    <div class="note-toolbar">
-      <button class="note-btn note-btn-color" title="Cor">🎨</button>
-      <button class="note-btn note-btn-delete" title="Excluir nota">×</button>
+    <div class="note-toolbar" role="group" aria-label="Ações da nota">
+      <button type="button" class="note-btn note-btn-color" title="Cor"
+              aria-label="Escolher cor" aria-haspopup="true" aria-expanded="false">🎨</button>
+      <button type="button" class="note-btn note-btn-delete" title="Excluir nota"
+              aria-label="Excluir nota">×</button>
     </div>
-    <div class="color-picker hidden"></div>
-    <h3 class="note-title" contenteditable="true" spellcheck="false">${escapeHtml(note.title)}</h3>
+    <div class="color-picker hidden" role="group" aria-label="Paleta de cores"></div>
+    <h3 class="note-title" contenteditable="true" spellcheck="false"
+        role="textbox" aria-label="Título da nota">${escapeHtml(note.title)}</h3>
     <div class="note-content" contenteditable="true" spellcheck="false"
+         role="textbox" aria-multiline="true" aria-label="Conteúdo da nota"
          data-placeholder="Digite sua nota...">${escapeHtml(note.content)}</div>
-    <div class="note-resize-handle" title="Redimensionar"></div>
+    <div class="note-resize-handle" role="button" tabindex="0"
+         aria-label="Redimensionar nota" title="Redimensionar"></div>
   `;
 
   // --- Seletor de cores ---
   const picker = el.querySelector('.color-picker');
+  const colorBtn = el.querySelector('.note-btn-color');
   COLORS.forEach((c) => {
     const swatch = document.createElement('button');
+    swatch.type = 'button';
     swatch.className = 'color-swatch' + (c === note.color ? ' active' : '');
     swatch.dataset.color = c;
     swatch.title = c;
+    swatch.setAttribute('aria-label', `Cor ${c}`);
+    swatch.setAttribute('aria-pressed', c === note.color ? 'true' : 'false');
     swatch.addEventListener('click', (e) => {
       e.stopPropagation();
       el.dataset.color = c;
-      picker.querySelectorAll('.color-swatch').forEach((s) =>
-        s.classList.toggle('active', s.dataset.color === c)
-      );
+      picker.querySelectorAll('.color-swatch').forEach((s) => {
+        const active = s.dataset.color === c;
+        s.classList.toggle('active', active);
+        s.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
       picker.classList.add('hidden');
+      colorBtn.setAttribute('aria-expanded', 'false');
       patchNote(note.id, { color: c });
     });
     picker.appendChild(swatch);
@@ -101,16 +115,37 @@ function createNoteElement(note) {
 
   // --- Eventos ---
   el.addEventListener('pointerdown', () => bringToFront(note.id));
-  el.querySelector('.note-btn-color').addEventListener('pointerdown', (e) => {
+  colorBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  colorBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    const willOpen = picker.classList.contains('hidden');
     picker.classList.toggle('hidden');
+    colorBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
   });
   el.querySelector('.note-btn-delete').addEventListener('click', (e) => {
     e.stopPropagation();
     deleteNote(note.id);
   });
   el.querySelector('.note-btn-delete').addEventListener('pointerdown', (e) => e.stopPropagation());
-  el.querySelector('.note-resize-handle').addEventListener('pointerdown', (e) => startResize(e, note.id));
+
+  const resizeHandle = el.querySelector('.note-resize-handle');
+  resizeHandle.addEventListener('pointerdown', (e) => startResize(e, note.id));
+  resizeHandle.addEventListener('keydown', (e) => {
+    const step = 10;
+    let dw = 0;
+    let dh = 0;
+    if (e.key === 'ArrowRight') dw = step;
+    else if (e.key === 'ArrowLeft') dw = -step;
+    else if (e.key === 'ArrowDown') dh = step;
+    else if (e.key === 'ArrowUp') dh = -step;
+    else return;
+    e.preventDefault();
+    const w = Math.min(1000, Math.max(MIN_W, el.offsetWidth + dw));
+    const h = Math.min(1000, Math.max(MIN_H, el.offsetHeight + dh));
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+    patchNote(note.id, { width: w, height: h });
+  });
 
   // --- Edição com debounce ---
   const titleEl = el.querySelector('.note-title');
@@ -170,16 +205,33 @@ async function loadNotes() {
   }
 }
 
+function nextNotePosition() {
+  const base = 40;
+  const step = 24;
+  const slots = 8;
+  for (let i = 0; i < slots; i++) {
+    const offset = ((notes.size + i) % slots) * step;
+    const x = base + offset;
+    const y = base + offset;
+    const taken = [...notes.values()].some(
+      (n) => n.position_x === x && n.position_y === y
+    );
+    if (!taken) return { x, y };
+  }
+  const offset = (notes.size % slots) * step;
+  return { x: base + offset, y: base + offset };
+}
+
 async function createNote() {
   try {
-    // Posição com pequeno deslocamento para notas novas não ficarem empilhadas
-    const offset = (notes.size % 8) * 24;
+    // Posição com pequeno deslocamento, evitando sobrepor uma nota existente
+    const pos = nextNotePosition();
     const payload = {
       title: 'Nova nota',
       content: '',
       color: 'yellow',
-      position_x: 40 + offset,
-      position_y: 40 + offset,
+      position_x: pos.x,
+      position_y: pos.y,
       width: 240,
       height: 220,
       z_index: ++topZ,
@@ -202,7 +254,7 @@ async function createNote() {
 function saveNote(id) {
   const el = noteEls.get(id);
   if (!el) return;
-  const title = el.querySelector('.note-title').textContent.trim().slice(0, 150);
+  const title = el.querySelector('.note-title').innerText.trim().slice(0, 150);
   const content = el.querySelector('.note-content').innerText.slice(0, 10000);
   patchNote(id, { title, content });
 }
@@ -323,12 +375,10 @@ function bringToFront(id) {
 // ===== Pesquisa (frontend, em tempo real) =====
 function filterNotes(query) {
   const q = query.trim().toLowerCase();
-  noteEls.forEach((el, id) => {
-    const note = notes.get(id);
-    if (!note) return;
-    const match = !q ||
-      note.title.toLowerCase().includes(q) ||
-      note.content.toLowerCase().includes(q);
+  noteEls.forEach((el) => {
+    const title = el.querySelector('.note-title').textContent.toLowerCase();
+    const content = el.querySelector('.note-content').textContent.toLowerCase();
+    const match = !q || title.includes(q) || content.includes(q);
     el.style.display = match ? '' : 'none';
   });
 }
@@ -384,6 +434,7 @@ searchInput.addEventListener('input', () => filterNotes(searchInput.value));
 document.addEventListener('pointerdown', (e) => {
   if (!e.target.closest('.color-picker') && !e.target.closest('.note-btn-color')) {
     document.querySelectorAll('.color-picker').forEach((p) => p.classList.add('hidden'));
+    document.querySelectorAll('.note-btn-color').forEach((b) => b.setAttribute('aria-expanded', 'false'));
   }
 });
 

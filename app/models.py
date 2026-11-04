@@ -8,6 +8,17 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
+def _iso_utc(value):
+    """Serializa uma data assumindo UTC e sempre com offset no ISO 8601."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
+
+
 class Note(db.Model):
     """Uma nota adesiva no quadro."""
 
@@ -37,6 +48,6 @@ class Note(db.Model):
             "width": self.width,
             "height": self.height,
             "z_index": self.z_index,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_at": _iso_utc(self.created_at),
+            "updated_at": _iso_utc(self.updated_at),
         }

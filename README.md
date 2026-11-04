@@ -41,7 +41,10 @@ source .venv/bin/activate
 # 3. Instale as dependências
 pip install -r requirements.txt
 
-# 4. Execute
+# 4. Crie/atualize o banco de dados
+flask --app run.py db upgrade
+
+# 5. Execute
 python run.py
 ```
 
@@ -55,20 +58,27 @@ python -m venv .venv
 
 pip install -r requirements.txt
 
+flask --app run.py db upgrade
+
 python run.py
 ```
 
 Acesse **http://127.0.0.1:5000** no navegador.
 
-> 💡 O banco de dados `instance/notes.db` é **criado automaticamente** na
-> primeira execução. Não é necessário nenhum comando de migração.
+> 💡 Para desenvolvimento com recarregamento automático, ative o modo debug:
+> `FLASK_DEBUG=1` (Linux/macOS) ou `$env:FLASK_DEBUG=1` (PowerShell) antes de rodar `python run.py`.
+> Por padrão o debug fica **desligado**.
+
+> 💡 O banco `instance/notes.db` é criado pelo comando `flask --app run.py db upgrade`.
+> Ao alterar o modelo `Note`, gere uma nova migração com
+> `flask --app run.py db migrate -m "descrição"` e aplique com `flask --app run.py db upgrade`.
 
 ## 📁 Estrutura do projeto
 
 ```
 sticky-notes/
 ├── app/
-│   ├── __init__.py       # Fábrica da aplicação (create_app) + criação do banco
+│   ├── __init__.py       # Fábrica da aplicação (create_app) + Flask-Migrate
 │   ├── models.py         # Modelo Note (SQLAlchemy)
 │   ├── routes.py         # API REST (/api/notes) com validação
 │   ├── templates/
@@ -79,11 +89,21 @@ sticky-notes/
 │       └── js/
 │           └── app.js    # Drag&drop, debounce, fetch, pesquisa, grade
 ├── instance/
-│   └── notes.db          # Banco SQLite (gerado automaticamente)
+│   └── notes.db          # Banco SQLite (gerado via flask db upgrade)
+├── migrations/           # Migrações do banco (Alembic/Flask-Migrate)
+├── tests/                # Testes da API (pytest)
 ├── run.py                # Ponto de entrada: python run.py
 ├── requirements.txt
+├── requirements-dev.txt  # Dependências de desenvolvimento (pytest)
 ├── .gitignore
 └── README.md
+```
+
+## 🧪 Testes
+
+```bash
+pip install -r requirements-dev.txt
+pytest
 ```
 
 ## 🔌 API REST
